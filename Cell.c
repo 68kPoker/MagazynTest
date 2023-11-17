@@ -9,7 +9,8 @@ void setCell( struct Cell *c, UBYTE kind, UBYTE dir )
     c->kind = kind;
     c->dir = dir;
     c->mode = ACTIVE;
-    c->frame = 0;    
+    c->frame = 0;
+    c->anim = TRUE;
 }
 
 void moveCell( struct Cell *src, BYTE shift, BOOL discard )
@@ -37,11 +38,21 @@ void moveObject( struct Cell *c )
     if( c->dist > 0 )
     {
         c->dist -= SPEED;
+        c->anim = TRUE;
     }
 
-    if( c->dir == 0 )
+    if( c->dist == 0 )
     {
         c->mode = ACTIVE;
+    }
+}
+
+void animObject( struct Cell *c, WORD frame )
+{
+    if (frame != c->frame)
+    {
+        c->frame = frame;
+        c->anim = TRUE;
     }
 }
 
@@ -62,11 +73,14 @@ void moveSetCell( struct Cell *c, BYTE shift, UBYTE kind, UBYTE dir, BOOL discar
 
 void handleCell( struct Cell *c, void ( *handlers[ KINDS ] )( struct Cell *c ) )
 {
-    void ( *handler )( struct Cell *c ) = handlers + c->kind;
+    void ( *handler )( struct Cell *c ) = handlers[ c->kind ];
 
-    if( !c->visited && handler )
+    if( !c->visited )
     {
-        handler( c );
+        if( handler )
+        {
+            handler( c );
+        }
     }
 
     c->visited = FALSE;
@@ -84,10 +98,10 @@ void handleBoard( struct Cell( *c )[ WIDTH ] )
         NULL,
         handleBullet,
         handleFire,
+        NULL,
         handleSkull,
         NULL,
         NULL,
-        NULL
     };
     WORD x, y;
 
@@ -109,9 +123,9 @@ void handleBullet( struct Cell *c )
     {
         moveObject( c );
     }
-    
+
     if( c->mode == ACTIVE )
-    {        
+    {
         switch( dest->kind )
         {
         case FLOOR:
@@ -119,7 +133,7 @@ void handleBullet( struct Cell *c )
             break;
         case HERO:
         case SKULL:
-        case DEBRIS:            
+        case DEBRIS:
             moveSetCell( c, shift, FIRE, NONE, TRUE );
             break;
         default:
@@ -133,7 +147,7 @@ void handleFire( struct Cell *c )
 {
     if( c->frame < FIRE_FRAMES )
     {
-        c->frame++;
+        animObject( c, c->frame + 1 );
     }
     else
     {
@@ -146,18 +160,26 @@ void handleSkull( struct Cell *c )
     BYTE shift = shifts[ c->dir ];
     struct Cell *dest = c + shift;
 
-    switch( dest->kind )
+    if( c->mode == MOVING )
     {
-    case FLOOR:
-        moveCell( c, shift, TRUE );
-        break;
-    case BULLET:
-    case HERO:
-        moveSetCell( c, shift, FIRE, NONE, TRUE );
-        break;
-    default:
-        c->dir = opposite( c->dir );
-        break;
+        moveObject( c );
+    }
+
+    if( c->mode == ACTIVE )
+    {
+        switch( dest->kind )
+        {
+        case FLOOR:
+            moveCell( c, shift, TRUE );
+            break;
+        case BULLET:
+        case HERO:
+            moveSetCell( c, shift, FIRE, NONE, TRUE );
+            break;
+        default:
+            c->dir = opposite( c->dir );
+            break;
+        }
     }
 }
 
